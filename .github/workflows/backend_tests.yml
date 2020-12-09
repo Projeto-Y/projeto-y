@@ -1,0 +1,52 @@
+name: Backend tests
+
+on: push
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  larevel-tests:
+    name: PHPUnit suite
+    runs-on: ubuntu-latest
+    container: php:7.2-apache
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_DATABASE: techmentor
+          MYSQL_ROOT_PASSWORD: techmentor
+          MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
+        ports:
+          - "3306:3306"
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Laravel setup
+        run: |
+          apt-get update
+          apt-get install -y libxml2-dev git unzip
+          docker-php-ext-install bcmath pdo_mysql
+          cp .env.ci .env
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+          php artisan key:generate
+          chmod -R 777 storage bootstrap/cache
+      - name: Execute tests (Unit and Feature tests) via PHPUnit
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: mysql
+          DB_DATABASE: techmentor
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: techmentor
+        run: |
+          php artisan migrate
+          vendor/phpunit/phpunit/phpunit
